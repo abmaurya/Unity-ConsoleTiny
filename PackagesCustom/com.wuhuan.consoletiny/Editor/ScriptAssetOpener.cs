@@ -1,13 +1,13 @@
 ﻿using System;
+using System.Collections;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using Microsoft.Win32;
 using UnityEditor;
 using UnityEditorInternal;
-#if UNITY_2017_1_OR_NEWER
 using UnityEditor.PackageManager;
-#endif
+//using Unity.EditorCoroutines.Editor;
 
 namespace ConsoleTiny
 {
@@ -27,28 +27,33 @@ namespace ConsoleTiny
             return "\"" + path + "\"";
         }
 
-        public static bool OpenAsset(string file, int line)
+        //public static bool OpenAsset(string file, int line)
+        public static IEnumerator OpenAsset(string file, int line)
         {
             if (string.IsNullOrEmpty(file) || file == "None")
             {
-                return false;
+                //return false;
+                yield break;
             }
             if (file.StartsWith("Assets/"))
             {
                 var ext = Path.GetExtension(file).ToLower();
                 if (ext == ".lua" && TryOpenLuaFile(file, line))
                 {
-                    return true;
+                    //return true;
+                    yield break;
                 }
 
                 var obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(file);
                 if (obj)
                 {
                     AssetDatabase.OpenAsset(obj, line);
-                    return true;
+                    //return true;
+                    yield break;
                 }
 
-                return false;
+                //return false;
+                yield break;
             }
 
             char separatorChar = '\\';
@@ -63,19 +68,17 @@ namespace ConsoleTiny
                 fileFullPath = Path.GetFullPath(file.Replace('/', separatorChar));
             }
 
-#if UNITY_2018_1_OR_NEWER
-            var packageInfos = Packages.GetAll();
-            foreach (var packageInfo in packageInfos)
+            var packageListRequest = Client.List(true);
+            yield return packageListRequest;
+            foreach (var packageInfo in packageListRequest.Result)
             {
                 if (fileFullPath.StartsWith(packageInfo.resolvedPath, StringComparison.Ordinal))
                 {
                     InternalEditorUtility.OpenFileAtLineExternal(fileFullPath, line);
-                    return true;
+                    //return true;
+                    yield break;
                 }
             }
-#elif UNITY_2017_1_OR_NEWER
-            // TODO
-#endif
 
             // 别人编译的DLL，不存在文件路径，那么就以工程路径拼接组装来尝试获取本地路径
             if (!File.Exists(fileFullPath))
@@ -85,7 +88,8 @@ namespace ConsoleTiny
                 {
                     if (string.IsNullOrEmpty(directoryName) || !Directory.Exists(directoryName))
                     {
-                        return false;
+                        //return false;
+                        yield break;
                     }
 
                     int pos = fileFullPath.IndexOf(separatorChar);
@@ -94,7 +98,8 @@ namespace ConsoleTiny
                         string testFullPath = Path.Combine(directoryName, fileFullPath.Substring(pos + 1));
                         if (File.Exists(testFullPath) && TryOpenVisualStudioFile(testFullPath, line))
                         {
-                            return true;
+                            //return true;
+                            yield break;
                         }
 
                         pos = fileFullPath.IndexOf(separatorChar, pos + 1);
@@ -104,7 +109,7 @@ namespace ConsoleTiny
                 }
             }
 
-            return TryOpenVisualStudioFile(fileFullPath, line);
+            TryOpenVisualStudioFile(fileFullPath, line);
         }
 
         private static bool TryOpenVisualStudioFile(string file, int line)
@@ -132,28 +137,29 @@ namespace ConsoleTiny
             return false;
         }
 
-        private static void OpenVisualStudioFile(string projectPath, string file, int line)
+        //private static void OpenVisualStudioFile(string projectPath, string file, int line)
+        private static IEnumerator OpenVisualStudioFile(string projectPath, string file, int line)
         {
-#if UNITY_2017_1_OR_NEWER
             string vsPath = ScriptEditorUtility.GetExternalScriptEditor();
-#else
-            string vsPath = InternalEditorUtility.GetExternalScriptEditor();
-#endif
+
             if (IsNotWindowsEditor())
             {
                 Process.Start("open", "-a " + QuotePathIfNeeded(vsPath) + " " + QuotePathIfNeeded(file));
-                return;
+                //return;
+                yield break;
             }
 
             if (string.IsNullOrEmpty(vsPath) || !File.Exists(vsPath))
             {
-                return;
+                //return;
+                yield break;
             }
             string exePath = String.Empty;
 
-#if UNITY_2018_1_OR_NEWER
-            var packageInfos = Packages.GetAll();
-            foreach (var packageInfo in packageInfos)
+
+            var packageListRequest = Client.List(true);
+            yield return packageListRequest; 
+            foreach (var packageInfo in packageListRequest.Result)
             {
                 if (packageInfo.name == "com.wuhuan.consoletiny")
                 {
@@ -164,10 +170,7 @@ namespace ConsoleTiny
                 }
             }
 
-#elif UNITY_2017_1_OR_NEWER
-            // TODO
-            exePath = "../../PackagesCustom/com.wuhuan.consoletiny";
-#endif
+
             if (string.IsNullOrEmpty(exePath))
             {
                 exePath = "Assets/Editor/VisualStudioFileOpenTool.exe";
@@ -177,7 +180,8 @@ namespace ConsoleTiny
             {
                 if (!File.Exists(exePath))
                 {
-                    return;
+                    //return;
+                    yield break;
                 }
 
                 ThreadPool.QueueUserWorkItem(_ =>

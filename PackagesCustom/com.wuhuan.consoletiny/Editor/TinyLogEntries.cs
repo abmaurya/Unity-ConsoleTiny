@@ -4,15 +4,11 @@ using System.IO;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
-#if UNITY_2017_1_OR_NEWER
 using CoreLog = UnityEditor;
-#else
-using CoreLog = UnityEditorInternal;
-#endif
 
 namespace ConsoleTiny
 {
-    public class LogEntries
+    public class TinyLogEntries
     {
         public static void Clear()
         {
@@ -572,7 +568,7 @@ namespace ConsoleTiny
                     {
                         sb.Append("LogStart1----");
                     }
-                    sb.Append(entryInfo.entry.condition);
+                    sb.Append(entryInfo.entry.message);
                     sb.Append("\r\n");  // 方便导入的时候，进行识别
                 }
                 File.WriteAllText(filePath, sb.ToString());
@@ -617,7 +613,7 @@ namespace ConsoleTiny
                         }
                     }
 
-                    entry.condition = text;
+                    entry.message = text;
                     AddEntry(i, entry, text, 0);
                 }
             }
@@ -1030,7 +1026,7 @@ namespace ConsoleTiny
 
             private void StacktraceListView_Parse(EntryInfo entryInfo)
             {
-                var lines = entryInfo.entry.condition.Split(new char[] { '\n' }, StringSplitOptions.None);
+                var lines = entryInfo.entry.message.Split(new char[] { '\n' }, StringSplitOptions.None);
                 entryInfo.stacktraceLineInfos = new List<StacktraceLineInfo>(lines.Length);
 
                 string rootDirectory = System.IO.Path.Combine(Application.dataPath, "..");
@@ -1400,7 +1396,7 @@ namespace ConsoleTiny
                     return;
                 }
 
-                EditorGUIUtility.systemCopyBuffer = m_SelectedInfo.entry.condition;
+                EditorGUIUtility.systemCopyBuffer = m_SelectedInfo.entry.message;
             }
 
             #endregion

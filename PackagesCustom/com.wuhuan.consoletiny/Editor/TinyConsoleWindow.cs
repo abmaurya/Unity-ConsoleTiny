@@ -2,29 +2,23 @@
 using System.Globalization;
 using UnityEngine;
 using UnityEditor;
-#if UNITY_2018_3_OR_NEWER
-using UnityEngine.Experimental.Networking.PlayerConnection;
-using UnityEditor.Experimental.Networking.PlayerConnection;
-using ConnectionGUILayout = UnityEditor.Experimental.Networking.PlayerConnection.EditorGUILayout;
-#endif
+
+using UnityEditor.Networking.PlayerConnection;
+using ConnectionGUILayout = UnityEditor.Networking.PlayerConnection.PlayerConnectionGUILayout;
 using EditorGUI = UnityEditor.EditorGUI;
 using EditorGUILayout = UnityEditor.EditorGUILayout;
 using EditorGUIUtility = UnityEditor.EditorGUIUtility;
-#if UNITY_2017_1_OR_NEWER
 using CoreLog = UnityEditor;
-#else
-using CoreLog = UnityEditorInternal;
-#endif
 
 namespace ConsoleTiny
 {
     [EditorWindowTitle(title = "Console", useTypeNameAsIconName = true)]
-    public class ConsoleWindow : EditorWindow, IHasCustomMenu
+    public class TinyConsoleWindow : EditorWindow, IHasCustomMenu
     {
         [MenuItem("Window/General/ConsoleT %#t", false, 7)]
         static void ShowConsole()
         {
-            EditorWindow.GetWindow<ConsoleWindow>();
+            EditorWindow.GetWindow<TinyConsoleWindow>();
         }
 
         //TODO: move this out of here
@@ -71,7 +65,7 @@ namespace ConsoleTiny
                 set
                 {
                     ms_logStyleLineCount = value;
-                    LogEntries.wrapped.numberOfLines = value;
+                    TinyLogEntries.wrapped.numberOfLines = value;
 
                     // If Constants hasn't been initialized yet we just skip this for now
                     // and let Init() call this for us in a bit.
@@ -110,20 +104,20 @@ namespace ConsoleTiny
                 MessageStyle.onNormal.background = selectedStyle.normal.background;
 
                 bool isProSkin = EditorGUIUtility.isProSkin;
-                LogEntries.EntryWrapped.Constants.colorNamespace = isProSkin ? "6A87A7" : "66677E";
-                LogEntries.EntryWrapped.Constants.colorClass = isProSkin ? "1A7ECD" : "0072A0";
-                LogEntries.EntryWrapped.Constants.colorMethod = isProSkin ? "0D9DDC" : "335B89";
-                LogEntries.EntryWrapped.Constants.colorParameters = isProSkin ? "4F7F9F" : "4C5B72";
-                LogEntries.EntryWrapped.Constants.colorPath = isProSkin ? "375E68" : "7F8B90";
-                LogEntries.EntryWrapped.Constants.colorFilename = isProSkin ? "4A6E8A" : "6285A1";
-                LogEntries.EntryWrapped.Constants.colorNamespaceAlpha = isProSkin ? "4E5B6A" : "87878F";
-                LogEntries.EntryWrapped.Constants.colorClassAlpha = isProSkin ? "2A577B" : "628B9B";
-                LogEntries.EntryWrapped.Constants.colorMethodAlpha = isProSkin ? "246581" : "748393";
-                LogEntries.EntryWrapped.Constants.colorParametersAlpha = isProSkin ? "425766" : "7D838B";
-                LogEntries.EntryWrapped.Constants.colorPathAlpha = isProSkin ? "375860" : "8E989D";
-                LogEntries.EntryWrapped.Constants.colorFilenameAlpha = isProSkin ? "4A6E8A" : "6285A1";
+                TinyLogEntries.EntryWrapped.Constants.colorNamespace = isProSkin ? "6A87A7" : "66677E";
+                TinyLogEntries.EntryWrapped.Constants.colorClass = isProSkin ? "1A7ECD" : "0072A0";
+                TinyLogEntries.EntryWrapped.Constants.colorMethod = isProSkin ? "0D9DDC" : "335B89";
+                TinyLogEntries.EntryWrapped.Constants.colorParameters = isProSkin ? "4F7F9F" : "4C5B72";
+                TinyLogEntries.EntryWrapped.Constants.colorPath = isProSkin ? "375E68" : "7F8B90";
+                TinyLogEntries.EntryWrapped.Constants.colorFilename = isProSkin ? "4A6E8A" : "6285A1";
+                TinyLogEntries.EntryWrapped.Constants.colorNamespaceAlpha = isProSkin ? "4E5B6A" : "87878F";
+                TinyLogEntries.EntryWrapped.Constants.colorClassAlpha = isProSkin ? "2A577B" : "628B9B";
+                TinyLogEntries.EntryWrapped.Constants.colorMethodAlpha = isProSkin ? "246581" : "748393";
+                TinyLogEntries.EntryWrapped.Constants.colorParametersAlpha = isProSkin ? "425766" : "7D838B";
+                TinyLogEntries.EntryWrapped.Constants.colorPathAlpha = isProSkin ? "375860" : "8E989D";
+                TinyLogEntries.EntryWrapped.Constants.colorFilenameAlpha = isProSkin ? "4A6E8A" : "6285A1";
 
-#if !UNITY_2017_1_OR_NEWER
+
                 IconLogStyle = "CN EntryInfo";
                 IconWarningStyle = "CN EntryWarn";
                 IconErrorStyle = "CN EntryError";
@@ -139,17 +133,7 @@ namespace ConsoleTiny
                 IconLogSmallStyle.normal.background = null; IconLogSmallStyle.onNormal.background = null;
                 IconWarningSmallStyle.normal.background = null; IconWarningSmallStyle.onNormal.background = null;
                 IconErrorSmallStyle.normal.background = null; IconErrorSmallStyle.onNormal.background = null;
-#else
-                IconLogStyle = "CN EntryInfoIcon";
-                IconWarningStyle = "CN EntryWarnIcon";
-                IconErrorStyle = "CN EntryErrorIcon";
-                LogSmallStyle = "CN EntryInfoSmall";
-                WarningSmallStyle = "CN EntryWarnSmall";
-                ErrorSmallStyle = "CN EntryErrorSmall";
-                IconLogSmallStyle = "CN EntryInfoIconSmall";
-                IconWarningSmallStyle = "CN EntryWarnIconSmall";
-                IconErrorSmallStyle = "CN EntryErrorIconSmall";
-#endif
+
 
                 // If the console window isn't open OnEnable() won't trigger so it will end up with 0 lines,
                 // so we always make sure we read it up when we initialize here.
@@ -158,13 +142,11 @@ namespace ConsoleTiny
 
             private static void UpdateLogStyleFixedHeights()
             {
-#if UNITY_2017_1_OR_NEWER
                 // Whenever we change the line height count or the styles are set we need to update the fixed height
                 // of the following GuiStyles so the entries do not get cropped incorrectly.
                 ErrorStyle.fixedHeight = (LogStyleLineCount * ErrorStyle.lineHeight) + ErrorStyle.border.top;
                 WarningStyle.fixedHeight = (LogStyleLineCount * WarningStyle.lineHeight) + WarningStyle.border.top;
                 LogStyle.fixedHeight = (LogStyleLineCount * LogStyle.lineHeight) + LogStyle.border.top;
-#endif
             }
         }
 
@@ -191,7 +173,6 @@ namespace ConsoleTiny
 
         int ms_LVHeight = 0;
 
-#if UNITY_2018_3_OR_NEWER
         class ConsoleAttachToPlayerState : GeneralConnectionState
         {
             static class Content
@@ -200,7 +181,7 @@ namespace ConsoleTiny
                 public static GUIContent FullLog = EditorGUIUtility.TrTextContent("Full Log (Developer Mode Only)");
             }
 
-            public ConsoleAttachToPlayerState(EditorWindow parentWindow, Action<string> connectedCallback = null) : base(parentWindow, connectedCallback)
+            public ConsoleAttachToPlayerState(EditorWindow parentWindow, Action<string, EditorConnectionTarget?> connectedCallback = null) : base(parentWindow, connectedCallback)
             {
             }
 
@@ -224,22 +205,21 @@ namespace ConsoleTiny
                 PlayerConnectionLogReceiver.instance.State = IsLoggingFullLog() ? PlayerConnectionLogReceiver.ConnectionState.CleanLog : PlayerConnectionLogReceiver.ConnectionState.FullLog;
             }
 
-            public override void AddItemsToMenu(GenericMenu menu, Rect position)
-            {
-                // option to turn logging and the connection on or of
-                menu.AddItem(Content.PlayerLogging, IsConnected(), PlayerLoggingOptionSelected);
-                if (IsConnected())
-                {
-                    // All other options but the first are only available if logging is enabled
-                    menu.AddItem(Content.FullLog, IsLoggingFullLog(), FullLogOptionSelected);
-                    menu.AddSeparator("");
-                    base.AddItemsToMenu(menu, position);
-                }
-            }
+            //public override void AddItemsToMenu(GenericMenu menu, Rect position)
+            //{
+            //    // option to turn logging and the connection on or of
+            //    menu.AddItem(Content.PlayerLogging, IsConnected(), PlayerLoggingOptionSelected);
+            //    if (IsConnected())
+            //    {
+            //        // All other options but the first are only available if logging is enabled
+            //        menu.AddItem(Content.FullLog, IsLoggingFullLog(), FullLogOptionSelected);
+            //        menu.AddSeparator("");
+            //        base.AddItemsToMenu(menu, position);
+            //    }
+            //}
         }
 
-        IConnectionState m_ConsoleAttachToPlayerState;
-#endif
+        UnityEngine.Networking.PlayerConnection.IConnectionState m_ConsoleAttachToPlayerState;
 
         enum ConsoleFlags
         {
@@ -257,7 +237,7 @@ namespace ConsoleTiny
             ClearOnBuild = 1 << 11,
         };
 
-        static ConsoleWindow ms_ConsoleWindow = null;
+        static TinyConsoleWindow ms_ConsoleWindow = null;
 
         static internal void LoadIcons()
         {
@@ -273,10 +253,6 @@ namespace ConsoleTiny
             iconErrorSmall = EditorGUIUtility.LoadIcon("console.erroricon.sml");
             iconFirstErrorSmall = EditorGUIUtility.LoadIcon("sv_icon_dot14_sml");
 
-            // TODO: Once we get the proper monochrome images put them here.
-            /*iconInfoMono = EditorGUIUtility.LoadIcon("console.infoicon.mono");
-            iconWarnMono = EditorGUIUtility.LoadIcon("console.warnicon.mono");
-            iconErrorMono = EditorGUIUtility.LoadIcon("console.erroricon.mono");*/
             iconInfoMono = EditorGUIUtility.LoadIcon("console.infoicon.sml");
             iconWarnMono = EditorGUIUtility.LoadIcon("console.warnicon.inactive.sml");
             iconErrorMono = EditorGUIUtility.LoadIcon("console.erroricon.inactive.sml");
@@ -299,7 +275,7 @@ namespace ConsoleTiny
             ms_ConsoleWindow.m_NextRepaint = EditorApplication.timeSinceStartup + 0.25f;
         }
 
-        public ConsoleWindow()
+        public TinyConsoleWindow()
         {
             position = new Rect(200, 200, 800, 400);
             m_ListView = new ListViewState(0, 0);
@@ -324,7 +300,7 @@ namespace ConsoleTiny
 #else
             m_DevBuild = Unsupported.IsDeveloperBuild();
 #endif
-            LogEntries.wrapped.searchHistory = m_SearchHistory;
+            TinyLogEntries.wrapped.searchHistory = m_SearchHistory;
 
             Constants.LogStyleLineCount = EditorPrefs.GetInt("ConsoleWindowLogLineCount", 2);
             Application.logMessageReceived += DoLogChanged;
@@ -352,7 +328,7 @@ namespace ConsoleTiny
             m_ConsoleAttachToPlayerState?.Dispose();
             m_ConsoleAttachToPlayerState = null;
 #endif
-            m_SearchHistory = LogEntries.wrapped.searchHistory;
+            m_SearchHistory = TinyLogEntries.wrapped.searchHistory;
             if (ms_ConsoleWindow == this)
                 ms_ConsoleWindow = null;
         }
@@ -450,7 +426,7 @@ namespace ConsoleTiny
             m_ListViewMessage.scrollPos.y = 0;
             if (selectedIndex != -1)
             {
-                var instanceID = LogEntries.wrapped.SetSelectedEntry(selectedIndex);
+                var instanceID = TinyLogEntries.wrapped.SetSelectedEntry(selectedIndex);
                 // ping object referred by the log entry
                 if (m_ActiveInstanceID != instanceID)
                 {
@@ -469,14 +445,14 @@ namespace ConsoleTiny
             // We reset the scroll list to auto scrolling whenever the log entry count is modified
             m_ListView.rowHeight = newRowHeight;
             m_ListView.row = -1;
-            m_ListView.scrollPos.y = LogEntries.wrapped.GetCount() * newRowHeight;
+            m_ListView.scrollPos.y = TinyLogEntries.wrapped.GetCount() * newRowHeight;
         }
 
         void OnGUI()
         {
             Event e = Event.current;
             LoadIcons();
-            LogEntries.wrapped.UpdateEntries();
+            TinyLogEntries.wrapped.UpdateEntries();
 
             if (!m_HasUpdatedGuiStyles)
             {
@@ -487,18 +463,18 @@ namespace ConsoleTiny
 
             GUILayout.BeginHorizontal(Constants.Toolbar);
 
-            if (LogEntries.wrapped.importWatching)
+            if (TinyLogEntries.wrapped.importWatching)
             {
-                LogEntries.wrapped.importWatching = GUILayout.Toggle(LogEntries.wrapped.importWatching, Constants.ImportWatchingLabel, Constants.MiniButton);
+                TinyLogEntries.wrapped.importWatching = GUILayout.Toggle(TinyLogEntries.wrapped.importWatching, Constants.ImportWatchingLabel, Constants.MiniButton);
             }
 
             if (GUILayout.Button(Constants.ClearLabel, Constants.MiniButton))
             {
-                LogEntries.Clear();
+                TinyLogEntries.Clear();
                 GUIUtility.keyboardControl = 0;
             }
 
-            int currCount = LogEntries.wrapped.GetCount();
+            int currCount = TinyLogEntries.wrapped.GetCount();
 
             if (m_ListView.totalRows != currCount && m_ListView.totalRows > 0)
             {
@@ -509,10 +485,10 @@ namespace ConsoleTiny
                 }
             }
 
-            if (LogEntries.wrapped.searchFrame)
+            if (TinyLogEntries.wrapped.searchFrame)
             {
-                LogEntries.wrapped.searchFrame = false;
-                int selectedIndex = LogEntries.wrapped.GetSelectedEntryIndex();
+                TinyLogEntries.wrapped.searchFrame = false;
+                int selectedIndex = TinyLogEntries.wrapped.GetSelectedEntryIndex();
                 if (selectedIndex != -1)
                 {
                     int showIndex = selectedIndex + 1;
@@ -527,28 +503,24 @@ namespace ConsoleTiny
 
             EditorGUILayout.Space();
 
-            bool wasCollapsed = LogEntries.wrapped.collapse;
-            LogEntries.wrapped.collapse = GUILayout.Toggle(wasCollapsed, Constants.CollapseLabel, Constants.MiniButton);
+            bool wasCollapsed = TinyLogEntries.wrapped.collapse;
+            TinyLogEntries.wrapped.collapse = GUILayout.Toggle(wasCollapsed, Constants.CollapseLabel, Constants.MiniButton);
 
-            bool collapsedChanged = (wasCollapsed != LogEntries.wrapped.collapse);
+            bool collapsedChanged = (wasCollapsed != TinyLogEntries.wrapped.collapse);
             if (collapsedChanged)
             {
                 // unselect if collapsed flag changed
                 m_ListView.row = -1;
 
                 // scroll to bottom
-                m_ListView.scrollPos.y = LogEntries.wrapped.GetCount() * RowHeight;
+                m_ListView.scrollPos.y = TinyLogEntries.wrapped.GetCount() * RowHeight;
             }
 
             SetFlag(ConsoleFlags.ClearOnPlay, GUILayout.Toggle(HasFlag(ConsoleFlags.ClearOnPlay), Constants.ClearOnPlayLabel, Constants.MiniButton));
-#if UNITY_2019_1_OR_NEWER
-            SetFlag(ConsoleFlags.ClearOnBuild, GUILayout.Toggle(HasFlag(ConsoleFlags.ClearOnBuild), Constants.ClearOnBuildLabel, Constants.MiniButton));
-#endif
-            SetFlag(ConsoleFlags.ErrorPause, GUILayout.Toggle(HasFlag(ConsoleFlags.ErrorPause), Constants.ErrorPauseLabel, Constants.MiniButton));
 
-#if UNITY_2018_3_OR_NEWER
-            ConnectionGUILayout.AttachToPlayerDropdown(m_ConsoleAttachToPlayerState, EditorStyles.toolbarDropDown);
-#endif
+            SetFlag(ConsoleFlags.ClearOnBuild, GUILayout.Toggle(HasFlag(ConsoleFlags.ClearOnBuild), Constants.ClearOnBuildLabel, Constants.MiniButton));
+            SetFlag(ConsoleFlags.ErrorPause, GUILayout.Toggle(HasFlag(ConsoleFlags.ErrorPause), Constants.ErrorPauseLabel, Constants.MiniButton));
+            ConnectionGUILayout.ConnectionTargetSelectionDropdown(m_ConsoleAttachToPlayerState, EditorStyles.toolbarDropDown);
 
             EditorGUILayout.Space();
 
@@ -566,26 +538,26 @@ namespace ConsoleTiny
             SearchField(e);
 
             int errorCount = 0, warningCount = 0, logCount = 0;
-            LogEntries.wrapped.GetCountsByType(ref errorCount, ref warningCount, ref logCount);
+            TinyLogEntries.wrapped.GetCountsByType(ref errorCount, ref warningCount, ref logCount);
             EditorGUI.BeginChangeCheck();
-            bool setLogFlag = GUILayout.Toggle(LogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelLog), new GUIContent((logCount <= 999 ? logCount.ToString() : "999+"), logCount > 0 ? iconInfoSmall : iconInfoMono), Constants.MiniButton);
-            bool setWarningFlag = GUILayout.Toggle(LogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelWarning), new GUIContent((warningCount <= 999 ? warningCount.ToString() : "999+"), warningCount > 0 ? iconWarnSmall : iconWarnMono), Constants.MiniButton);
-            bool setErrorFlag = GUILayout.Toggle(LogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelError), new GUIContent((errorCount <= 999 ? errorCount.ToString() : "999+"), errorCount > 0 ? iconErrorSmall : iconErrorMono), Constants.MiniButton);
+            bool setLogFlag = GUILayout.Toggle(TinyLogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelLog), new GUIContent((logCount <= 999 ? logCount.ToString() : "999+"), logCount > 0 ? iconInfoSmall : iconInfoMono), Constants.MiniButton);
+            bool setWarningFlag = GUILayout.Toggle(TinyLogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelWarning), new GUIContent((warningCount <= 999 ? warningCount.ToString() : "999+"), warningCount > 0 ? iconWarnSmall : iconWarnMono), Constants.MiniButton);
+            bool setErrorFlag = GUILayout.Toggle(TinyLogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelError), new GUIContent((errorCount <= 999 ? errorCount.ToString() : "999+"), errorCount > 0 ? iconErrorSmall : iconErrorMono), Constants.MiniButton);
             // Active entry index may no longer be valid
             if (EditorGUI.EndChangeCheck())
             { }
 
-            LogEntries.wrapped.SetFlag((int)ConsoleFlags.LogLevelLog, setLogFlag);
-            LogEntries.wrapped.SetFlag((int)ConsoleFlags.LogLevelWarning, setWarningFlag);
-            LogEntries.wrapped.SetFlag((int)ConsoleFlags.LogLevelError, setErrorFlag);
+            TinyLogEntries.wrapped.SetFlag((int)ConsoleFlags.LogLevelLog, setLogFlag);
+            TinyLogEntries.wrapped.SetFlag((int)ConsoleFlags.LogLevelWarning, setWarningFlag);
+            TinyLogEntries.wrapped.SetFlag((int)ConsoleFlags.LogLevelError, setErrorFlag);
 
             if (GUILayout.Button(new GUIContent(errorCount > 0 ? iconFirstErrorSmall : iconFirstErrorMono, Constants.FirstErrorLabel), Constants.MiniButton))
             {
-                int firstErrorIndex = LogEntries.wrapped.GetFirstErrorEntryIndex();
+                int firstErrorIndex = TinyLogEntries.wrapped.GetFirstErrorEntryIndex();
                 if (firstErrorIndex != -1)
                 {
                     SetActiveEntry(firstErrorIndex);
-                    LogEntries.wrapped.searchFrame = true;
+                    TinyLogEntries.wrapped.searchFrame = true;
                 }
             }
 
@@ -603,7 +575,7 @@ namespace ConsoleTiny
             {
                 int selectedRow = -1;
                 bool openSelectedItem = false;
-                bool collapsed = LogEntries.wrapped.collapse;
+                bool collapsed = TinyLogEntries.wrapped.collapse;
                 foreach (ListViewElement el in ListViewGUI.ListView(m_ListView, Constants.Box))
                 {
                     if (e.type == EventType.MouseDown && e.button == 0 && el.position.Contains(e.mousePosition))
@@ -619,10 +591,10 @@ namespace ConsoleTiny
                         int entryCount = 0;
                         int searchIndex = 0;
                         int searchEndIndex = 0;
-                        string text = LogEntries.wrapped.GetEntryLinesAndFlagAndCount(el.row, ref mode, ref entryCount,
+                        string text = TinyLogEntries.wrapped.GetEntryLinesAndFlagAndCount(el.row, ref mode, ref entryCount,
                             ref searchIndex, ref searchEndIndex);
                         ConsoleFlags flag = (ConsoleFlags)mode;
-                        bool isSelected = LogEntries.wrapped.IsEntrySelected(el.row);
+                        bool isSelected = TinyLogEntries.wrapped.IsEntrySelected(el.row);
 
                         // Draw the background
                         GUIStyle s = el.row % 2 == 0 ? Constants.OddBackground : Constants.EvenBackground;
@@ -650,7 +622,7 @@ namespace ConsoleTiny
                         tempContent.text = text;
                         GUIStyle errorModeStyle = GetStyleForErrorMode(flag, false, Constants.LogStyleLineCount == 1);
 
-                        if (string.IsNullOrEmpty(LogEntries.wrapped.searchString) || searchIndex == -1 || searchIndex >= text.Length)
+                        if (string.IsNullOrEmpty(TinyLogEntries.wrapped.searchString) || searchIndex == -1 || searchIndex >= text.Length)
                         {
                             errorModeStyle.Draw(el.position, tempContent, id, isSelected);
                         }
@@ -715,7 +687,7 @@ namespace ConsoleTiny
             // Prevent dead locking in EditorMonoConsole by delaying callbacks (which can log to the console) until after LogEntries.EndGettingEntries() has been
             // called (this releases the mutex in EditorMonoConsole so logging again is allowed). Fix for case 1081060.
             if (rowDoubleClicked != -1)
-                LogEntries.wrapped.StacktraceListView_RowGotDoubleClicked();
+                TinyLogEntries.wrapped.StacktraceListView_RowGotDoubleClicked();
 
             EditorGUIUtility.SetIconSize(Vector2.zero);
 
@@ -727,7 +699,7 @@ namespace ConsoleTiny
             if ((e.type == EventType.ValidateCommand || e.type == EventType.ExecuteCommand) && e.commandName == "Copy")
             {
                 if (e.type == EventType.ExecuteCommand)
-                    LogEntries.wrapped.StacktraceListView_CopyAll();
+                    TinyLogEntries.wrapped.StacktraceListView_CopyAll();
                 e.Use();
             }
         }
@@ -746,7 +718,7 @@ namespace ConsoleTiny
                     e.Use();
             }
 
-            string searchText = LogEntries.wrapped.searchString;
+            string searchText = TinyLogEntries.wrapped.searchString;
             if (e.type == EventType.KeyDown)
             {
                 if (e.keyCode == KeyCode.Escape)
@@ -767,17 +739,17 @@ namespace ConsoleTiny
                 EditorGUI.kSingleLineHeight, EditorStyles.toolbarSearchField, GUILayout.MinWidth(100),
                 GUILayout.MaxWidth(300));
 
-            bool showHistory = LogEntries.wrapped.searchHistory[0].Length != 0;
+            bool showHistory = TinyLogEntries.wrapped.searchHistory[0].Length != 0;
             Rect popupPosition = rect;
             popupPosition.width = 20;
             if (showHistory && Event.current.type == EventType.MouseDown && popupPosition.Contains(Event.current.mousePosition))
             {
                 GUIUtility.keyboardControl = 0;
-                EditorUtility.DisplayCustomMenu(rect, EditorGUIUtility.TempContent(LogEntries.wrapped.searchHistory), -1, OnSetFilteringHistoryCallback, null);
+                EditorUtility.DisplayCustomMenu(rect, EditorGUIUtility.TrTempContent(TinyLogEntries.wrapped.searchHistory), -1, OnSetFilteringHistoryCallback, null);
                 Event.current.Use();
             }
 
-            LogEntries.wrapped.searchString = EditorGUI.ToolbarSearchField(
+            TinyLogEntries.wrapped.searchString = EditorGUI.ToolbarSearchField(
 #if !UNITY_2018_1_OR_NEWER
                 GUIUtility.GetControlID("EditorSearchField".GetHashCode(), FocusType.Keyboard, position),
 #endif
@@ -787,13 +759,13 @@ namespace ConsoleTiny
             {
                 Rect buttonRect = rect;
                 buttonRect.x += buttonRect.width;
-                var menuData = new CustomFiltersItemProvider(LogEntries.wrapped.customFilters);
+                var menuData = new CustomFiltersItemProvider(TinyLogEntries.wrapped.customFilters);
                 var flexibleMenu = new FlexibleMenu(menuData, -1, new CustomFiltersModifyItemUI(), null);
                 PopupWindow.Show(buttonRect, flexibleMenu);
             }
 
             int iconIndex = 0;
-            foreach (var filter in LogEntries.wrapped.customFilters.filters)
+            foreach (var filter in TinyLogEntries.wrapped.customFilters.filters)
             {
                 if (iconIndex >= 7)
                 {
@@ -805,31 +777,31 @@ namespace ConsoleTiny
 
         private void OnSetFilteringHistoryCallback(object userData, string[] options, int selected)
         {
-            LogEntries.wrapped.searchString = options[selected];
+            TinyLogEntries.wrapped.searchString = options[selected];
         }
 
         #region Stacktrace
 
         private void StacktraceListView(Event e, GUIContent tempContent)
         {
-            float maxWidth = LogEntries.wrapped.StacktraceListView_GetMaxWidth(tempContent, Constants.MessageStyle);
+            float maxWidth = TinyLogEntries.wrapped.StacktraceListView_GetMaxWidth(tempContent, Constants.MessageStyle);
 
             if (m_StacktraceLineContextClickRow != -1)
             {
                 var stacktraceLineInfoIndex = m_StacktraceLineContextClickRow;
                 m_StacktraceLineContextClickRow = -1;
                 GenericMenu menu = new GenericMenu();
-                if (LogEntries.wrapped.StacktraceListView_CanOpen(stacktraceLineInfoIndex))
+                if (TinyLogEntries.wrapped.StacktraceListView_CanOpen(stacktraceLineInfoIndex))
                 {
-                    menu.AddItem(new GUIContent("Open"), false, LogEntries.wrapped.StacktraceListView_Open, stacktraceLineInfoIndex);
+                    menu.AddItem(new GUIContent("Open"), false, TinyLogEntries.wrapped.StacktraceListView_Open, stacktraceLineInfoIndex);
                     menu.AddSeparator("");
-                    if (LogEntries.wrapped.StacktraceListView_CanWrapper(stacktraceLineInfoIndex))
+                    if (TinyLogEntries.wrapped.StacktraceListView_CanWrapper(stacktraceLineInfoIndex))
                     {
-                        menu.AddItem(new GUIContent("Wrapper"), LogEntries.wrapped.StacktraceListView_IsWrapper(stacktraceLineInfoIndex), LogEntries.wrapped.StacktraceListView_Wrapper, stacktraceLineInfoIndex);
+                        menu.AddItem(new GUIContent("Wrapper"), TinyLogEntries.wrapped.StacktraceListView_IsWrapper(stacktraceLineInfoIndex), TinyLogEntries.wrapped.StacktraceListView_Wrapper, stacktraceLineInfoIndex);
                     }
                 }
-                menu.AddItem(new GUIContent("Copy"), false, LogEntries.wrapped.StacktraceListView_Copy, stacktraceLineInfoIndex);
-                menu.AddItem(new GUIContent("Copy All"), false, LogEntries.wrapped.StacktraceListView_CopyAll);
+                menu.AddItem(new GUIContent("Copy"), false, TinyLogEntries.wrapped.StacktraceListView_Copy, stacktraceLineInfoIndex);
+                menu.AddItem(new GUIContent("Copy All"), false, TinyLogEntries.wrapped.StacktraceListView_CopyAll);
                 menu.ShowAsContext();
             }
 
@@ -837,7 +809,7 @@ namespace ConsoleTiny
             int rowDoubleClicked = -1;
             int selectedRow = -1;
             bool openSelectedItem = false;
-            m_ListViewMessage.totalRows = LogEntries.wrapped.StacktraceListView_GetCount();
+            m_ListViewMessage.totalRows = TinyLogEntries.wrapped.StacktraceListView_GetCount();
             GUILayout.BeginHorizontal(Constants.Box);
             m_ListViewMessage.scrollPos = EditorGUILayout.BeginScrollView(m_ListViewMessage.scrollPos);
             ListViewGUI.ilvState.beganHorizontal = true;
@@ -864,7 +836,7 @@ namespace ConsoleTiny
                 }
                 else if (e.type == EventType.Repaint)
                 {
-                    tempContent.text = LogEntries.wrapped.StacktraceListView_GetLine(el.row);
+                    tempContent.text = TinyLogEntries.wrapped.StacktraceListView_GetLine(el.row);
                     rect = el.position;
                     if (rect.width < maxWidth)
                     {
@@ -894,7 +866,7 @@ namespace ConsoleTiny
 
             if (rowDoubleClicked != -1)
             {
-                LogEntries.wrapped.StacktraceListView_Open(rowDoubleClicked);
+                TinyLogEntries.wrapped.StacktraceListView_Open(rowDoubleClicked);
             }
         }
 
@@ -921,13 +893,13 @@ namespace ConsoleTiny
         public void AddItemsToMenu(GenericMenu menu)
         {
             if (Application.platform == RuntimePlatform.OSXEditor)
-                menu.AddItem(EditorGUIUtility.TextContent("Open Player Log"), false, UnityEditorInternal.InternalEditorUtility.OpenPlayerConsole);
-            menu.AddItem(EditorGUIUtility.TextContent("Open Editor Log"), false, UnityEditorInternal.InternalEditorUtility.OpenEditorConsole);
-            menu.AddItem(EditorGUIUtility.TextContent("Export Console Log"), false, LogEntries.wrapped.ExportLog);
-            menu.AddItem(EditorGUIUtility.TextContent("Import Console Log"), false, LogEntries.wrapped.ImportLog);
+                menu.AddItem(EditorGUIUtility.TrTextContent("Open Player Log"), false, UnityEditorInternal.InternalEditorUtility.OpenPlayerConsole);
+            menu.AddItem(EditorGUIUtility.TrTextContent("Open Editor Log"), false, UnityEditorInternal.InternalEditorUtility.OpenEditorConsole);
+            menu.AddItem(EditorGUIUtility.TrTextContent("Export Console Log"), false, TinyLogEntries.wrapped.ExportLog);
+            menu.AddItem(EditorGUIUtility.TrTextContent("Import Console Log"), false, TinyLogEntries.wrapped.ImportLog);
 
 #if UNITY_2018_1_OR_NEWER
-            menu.AddItem(EditorGUIUtility.TrTextContent("Show Timestamp"), LogEntries.wrapped.showTimestamp, SetTimestamp);
+            menu.AddItem(EditorGUIUtility.TrTextContent("Show Timestamp"), TinyLogEntries.wrapped.showTimestamp, SetTimestamp);
 #endif
 
 #if UNITY_2017_3_OR_NEWER
@@ -945,7 +917,7 @@ namespace ConsoleTiny
 
         private void SetTimestamp()
         {
-            LogEntries.wrapped.showTimestamp = !LogEntries.wrapped.showTimestamp;
+            TinyLogEntries.wrapped.showTimestamp = !TinyLogEntries.wrapped.showTimestamp;
         }
 
         private void SetLogLineCount(object obj)
@@ -968,7 +940,7 @@ namespace ConsoleTiny
                     data.logType = logType;
                     data.stackTraceLogType = stackTraceLogType;
 
-                    menu.AddItem(EditorGUIUtility.TextContent("Stack Trace Logging/" + logType + "/" + stackTraceLogType), PlayerSettings.GetStackTraceLogType(logType) == stackTraceLogType,
+                    menu.AddItem(EditorGUIUtility.TrTextContent("Stack Trace Logging/" + logType + "/" + stackTraceLogType), PlayerSettings.GetStackTraceLogType(logType) == stackTraceLogType,
                         ToggleLogStackTraces, data);
                 }
             }
@@ -985,7 +957,7 @@ namespace ConsoleTiny
 
             foreach (StackTraceLogType stackTraceLogType in Enum.GetValues(typeof(StackTraceLogType)))
             {
-                menu.AddItem(EditorGUIUtility.TextContent("Stack Trace Logging/All/" + stackTraceLogType), (StackTraceLogType)stackTraceLogTypeForAll == stackTraceLogType,
+                menu.AddItem(EditorGUIUtility.TrTextContent("Stack Trace Logging/All/" + stackTraceLogType), (StackTraceLogType)stackTraceLogTypeForAll == stackTraceLogType,
                     ToggleLogStackTracesForAll, stackTraceLogType);
             }
         }
@@ -997,7 +969,7 @@ namespace ConsoleTiny
 
         public GettingLogEntriesScope(ListViewState listView)
         {
-            listView.totalRows = LogEntries.wrapped.GetCount();
+            listView.totalRows = TinyLogEntries.wrapped.GetCount();
         }
 
         public void Dispose()
@@ -1018,9 +990,9 @@ namespace ConsoleTiny
 
     internal class CustomFiltersItemProvider : IFlexibleMenuItemProvider
     {
-        private readonly LogEntries.EntryWrapped.CustomFiltersGroup m_Groups;
+        private readonly TinyLogEntries.EntryWrapped.CustomFiltersGroup m_Groups;
 
-        public CustomFiltersItemProvider(LogEntries.EntryWrapped.CustomFiltersGroup groups)
+        public CustomFiltersItemProvider(TinyLogEntries.EntryWrapped.CustomFiltersGroup groups)
         {
             m_Groups = groups;
         }
@@ -1037,7 +1009,7 @@ namespace ConsoleTiny
 
         public int Add(object obj)
         {
-            m_Groups.filters.Add(new LogEntries.EntryWrapped.CustomFiltersItem() { filter = (string)obj, changed = false });
+            m_Groups.filters.Add(new TinyLogEntries.EntryWrapped.CustomFiltersItem() { filter = (string)obj, changed = false });
             m_Groups.Save();
             return Count() - 1;
         }
@@ -1088,11 +1060,11 @@ namespace ConsoleTiny
     {
         private static class Styles
         {
-            public static GUIContent headerAdd = EditorGUIUtility.TextContent("Add");
-            public static GUIContent headerEdit = EditorGUIUtility.TextContent("Edit");
-            public static GUIContent optionalText = EditorGUIUtility.TextContent("Search");
-            public static GUIContent ok = EditorGUIUtility.TextContent("OK");
-            public static GUIContent cancel = EditorGUIUtility.TextContent("Cancel");
+            public static GUIContent headerAdd = EditorGUIUtility.TrTextContent("Add");
+            public static GUIContent headerEdit = EditorGUIUtility.TrTextContent("Edit");
+            public static GUIContent optionalText = EditorGUIUtility.TrTextContent("Search");
+            public static GUIContent ok = EditorGUIUtility.TrTextContent("OK");
+            public static GUIContent cancel = EditorGUIUtility.TrTextContent("Cancel");
         }
 
         private string m_TextSearch;
