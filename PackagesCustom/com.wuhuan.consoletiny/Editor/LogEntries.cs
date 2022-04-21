@@ -5,10 +5,11 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 using CoreLog = UnityEditor;
+using Unity.EditorCoroutines.Editor;
 
 namespace ConsoleTiny
 {
-    public class TinyLogEntries
+    public class LogEntries
     {
         public static void Clear()
         {
@@ -292,11 +293,8 @@ namespace ConsoleTiny
 
                     int mode = 0;
                     string text = null;
-#if UNITY_2017_1_OR_NEWER
+
                     CoreLog.LogEntries.GetLinesAndModeFromEntryInternal(i, 10, ref mode, ref text);
-#else
-                    CoreLog.LogEntries.GetFirstTwoLinesEntryTextAndModeInternal(i, ref mode, ref text);
-#endif
 
                     int entryCount = 0;
                     if (collapse)
@@ -533,12 +531,11 @@ namespace ConsoleTiny
                 if (i != -1)
                 {
                     int startIndex = 0;
-#if UNITY_2018_1_OR_NEWER
+
                     if (!showTimestamp && !importWatching)
                     {
                         startIndex = 11;
                     }
-#endif
                     return s.Substring(startIndex, i - startIndex);
                 }
                 return s;
@@ -1033,11 +1030,8 @@ namespace ConsoleTiny
                 Uri uriRoot = new Uri(rootDirectory);
                 string textBeforeFilePath = ") (at ";
                 string textUnityEngineDebug = "UnityEngine.Debug";
-#if UNITY_2019_1_OR_NEWER
+
                 string fileInBuildSlave = "D:/unity/";
-#else
-                string fileInBuildSlave = "C:/buildslave/unity/";
-#endif
                 string luaCFunction = "[C]";
                 string luaMethodBefore = ": in function ";
                 string luaFileExt = ".lua";
@@ -1329,6 +1323,7 @@ namespace ConsoleTiny
 
             public void StacktraceListView_Open(object userData)
             {
+
                 if (!StacktraceListView_IsExist())
                 {
                     return;
@@ -1339,7 +1334,7 @@ namespace ConsoleTiny
                 {
                     var filePath = m_SelectedInfo.stacktraceLineInfos[stacktraceLineInfoIndex].filePath;
                     var lineNum = m_SelectedInfo.stacktraceLineInfos[stacktraceLineInfoIndex].lineNum;
-                    ScriptAssetOpener.OpenAsset(filePath, lineNum);
+                    EditorCoroutineUtility.StartCoroutine( ScriptAssetOpener.OpenAsset(filePath, lineNum), this);
                 }
             }
 

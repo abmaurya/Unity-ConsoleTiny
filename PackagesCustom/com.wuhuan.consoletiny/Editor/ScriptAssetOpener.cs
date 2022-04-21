@@ -7,7 +7,7 @@ using Microsoft.Win32;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEditor.PackageManager;
-//using Unity.EditorCoroutines.Editor;
+using Unity.EditorCoroutines.Editor;
 
 namespace ConsoleTiny
 {
@@ -124,7 +124,7 @@ namespace ConsoleTiny
                     var files = Directory.GetFiles(dirPath, "*.sln", SearchOption.TopDirectoryOnly);
                     if (files.Length > 0)
                     {
-                        OpenVisualStudioFile(files[0], file, line);
+                        EditorCoroutineUtility.StartCoroutine(OpenVisualStudioFile(files[0], file, line), null);
                         return true;
                     }
                 }
@@ -140,6 +140,8 @@ namespace ConsoleTiny
         //private static void OpenVisualStudioFile(string projectPath, string file, int line)
         private static IEnumerator OpenVisualStudioFile(string projectPath, string file, int line)
         {
+            UnityEngine.Debug.Log("Opening Asset");
+
             string vsPath = ScriptEditorUtility.GetExternalScriptEditor();
 
             if (IsNotWindowsEditor())
