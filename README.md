@@ -1,5 +1,5 @@
 # Unity-ConsoleTiny
-Console Tiny is a powerful replacement for Unity's editor console.
+Console Tiny is a powerful replacement for Unity's editor console. (Works with Unity 2022.1.0b16)
 
 ## Feature
 - Text Search Filter
@@ -10,14 +10,12 @@ Console Tiny is a powerful replacement for Unity's editor console.
 - DLL Support
 - Lua Support
 - Wrapper Support
+NOTE: This still lacks a few features that are avaialble in Unity's default console but (hopefully) those are trivial.
+To open a file in VS, this plugin uses a binary built using another open source project(by original author) [Visual Studio File Open Tool](https://github.com/akof1314/VisualStudioFileOpenTool)
 
 ![](https://github.com/akof1314/Unity-ConsoleTiny/raw/master/DLLTest/screenshot.png)
 
 ## Install
-- Unity 5.x
-	- [Unity-ConsoleTiny_5X.unitypackage](https://github.com/akof1314/Unity-ConsoleTiny/releases)
-- Unity 2017.x
-	- `UnityPackageManager\manifest.json`
 - Unity 2018.x (or later)
 	- `Packages\manifest.json`
 
