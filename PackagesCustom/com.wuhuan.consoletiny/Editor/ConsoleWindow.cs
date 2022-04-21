@@ -21,6 +21,11 @@ namespace ConsoleTiny
             EditorWindow.GetWindow<ConsoleWindow>();
         }
 
+        internal delegate void EntryDoubleClickedDelegate(LogEntry entry);
+        private static bool m_UseMonospaceFont;
+        private static Font m_MonospaceFont;
+        private static int m_DefaultFontSize;
+
         //TODO: move this out of here
         internal class Constants
         {
@@ -28,6 +33,7 @@ namespace ConsoleTiny
             private static int ms_logStyleLineCount;
             public static GUIStyle Box;
             public static GUIStyle MiniButton;
+            public static GUIStyle MiniButtonRight;
             public static GUIStyle LogStyle;
             public static GUIStyle WarningStyle;
             public static GUIStyle ErrorStyle;
@@ -48,6 +54,7 @@ namespace ConsoleTiny
             public static GUIStyle IconLogSmallStyle;
             public static GUIStyle IconWarningSmallStyle;
             public static GUIStyle IconErrorSmallStyle;
+
             public static readonly string ClearLabel = ("Clear");
             public static readonly string ClearOnPlayLabel = ("Clear on Play");
             public static readonly string ErrorPauseLabel = ("Error Pause");
@@ -58,6 +65,15 @@ namespace ConsoleTiny
             public static readonly string FirstErrorLabel = ("First Error");
             public static readonly string CustomFiltersLabel = ("Custom Filters");
             public static readonly string ImportWatchingLabel = ("Import Watching");
+            public static readonly GUIContent Clear = EditorGUIUtility.TrTextContent("Clear", "Clear console entries");
+            public static readonly GUIContent ClearOnPlay = EditorGUIUtility.TrTextContent("Clear on Play");
+            public static readonly GUIContent ClearOnBuild = EditorGUIUtility.TrTextContent("Clear on Build");
+            public static readonly GUIContent ClearOnRecompile = EditorGUIUtility.TrTextContent("Clear on Recompile");
+            public static readonly GUIContent Collapse = EditorGUIUtility.TrTextContent("Collapse", "Collapse identical entries");
+            public static readonly GUIContent ErrorPause = EditorGUIUtility.TrTextContent("Error Pause", "Pause Play Mode on error");
+            public static readonly GUIContent StopForAssert = EditorGUIUtility.TrTextContent("Stop for Assert");
+            public static readonly GUIContent StopForError = EditorGUIUtility.TrTextContent("Stop for Error");
+            public static readonly GUIContent UseMonospaceFont = EditorGUIUtility.TrTextContent("Use Monospace font");
 
             public static int LogStyleLineCount
             {
@@ -84,6 +100,7 @@ namespace ConsoleTiny
 
 
                 MiniButton = "ToolbarButton";
+                MiniButtonRight = "ToolbarButtonRight";
                 Toolbar = "Toolbar";
                 LogStyle = "CN EntryInfo";
                 WarningStyle = "CN EntryWarn";
@@ -96,6 +113,7 @@ namespace ConsoleTiny
                 StatusWarn = "CN StatusWarn";
                 StatusLog = "CN StatusInfo";
                 CountBadge = "CN CountBadge";
+
                 MessageStyle = new GUIStyle(MessageStyle);
                 MessageStyle.onNormal.textColor = MessageStyle.active.textColor;
                 MessageStyle.padding.top = 0;
@@ -138,9 +156,14 @@ namespace ConsoleTiny
                 // If the console window isn't open OnEnable() won't trigger so it will end up with 0 lines,
                 // so we always make sure we read it up when we initialize here.
                 LogStyleLineCount = EditorPrefs.GetInt("ConsoleWindowLogLineCount", 2);
+
+                m_MonospaceFont = EditorGUIUtility.Load("Fonts/RobotoMono/RobotoMono-Regular.ttf") as Font;
+                m_UseMonospaceFont = HasFlag(ConsoleFlags.UseMonospaceFont);
+                m_DefaultFontSize = LogStyle.fontSize;
+                SetFont();
             }
 
-            private static void UpdateLogStyleFixedHeights()
+            internal static void UpdateLogStyleFixedHeights()
             {
                 // Whenever we change the line height count or the styles are set we need to update the fixed height
                 // of the following GuiStyles so the entries do not get cropped incorrectly.
@@ -154,6 +177,7 @@ namespace ConsoleTiny
         int m_BorderHeight;
 
         bool m_HasUpdatedGuiStyles;
+
 
         ListViewState m_ListView;
         ListViewState m_ListViewMessage;
@@ -235,10 +259,11 @@ namespace ConsoleTiny
             LogLevelError = 1 << 9,
             ShowTimestamp = 1 << 10,
             ClearOnBuild = 1 << 11,
+            ClearOnRecompile = 1 << 12,
+            UseMonospaceFont = 1 << 13,
         };
 
         static ConsoleWindow ms_ConsoleWindow = null;
-
         static internal void LoadIcons()
         {
             if (ms_LoadedIcons)
@@ -462,14 +487,29 @@ namespace ConsoleTiny
                 LogEntries.wrapped.importWatching = GUILayout.Toggle(LogEntries.wrapped.importWatching, Constants.ImportWatchingLabel, Constants.MiniButton);
             }
 
-            if (GUILayout.Button(Constants.ClearLabel, Constants.MiniButton))
+            // Clear button and clearing options
+            bool clearClicked = false;
+            if (EditorGUILayout.DropDownToggle(ref clearClicked, Constants.Clear, EditorStyles.toolbarDropDownToggle))
+            {
+                var clearOnPlay = HasFlag(ConsoleFlags.ClearOnPlay);
+                var clearOnBuild = HasFlag(ConsoleFlags.ClearOnBuild);
+                var clearOnRecompile = HasFlag(ConsoleFlags.ClearOnRecompile);
+
+                GenericMenu menu = new GenericMenu();
+                menu.AddItem(Constants.ClearOnPlay, clearOnPlay, () => { SetFlag(ConsoleFlags.ClearOnPlay, !clearOnPlay); });
+                menu.AddItem(Constants.ClearOnBuild, clearOnBuild, () => { SetFlag(ConsoleFlags.ClearOnBuild, !clearOnBuild); });
+                menu.AddItem(Constants.ClearOnRecompile, clearOnRecompile, () => { SetFlag(ConsoleFlags.ClearOnRecompile, !clearOnRecompile); });
+                var rect = GUILayoutUtility.GetLastRect();
+                rect.y += EditorGUIUtility.singleLineHeight;
+                menu.DropDown(rect);
+            }
+            if (clearClicked)
             {
                 LogEntries.Clear();
                 GUIUtility.keyboardControl = 0;
             }
 
             int currCount = LogEntries.wrapped.GetCount();
-
             if (m_ListView.totalRows != currCount && m_ListView.totalRows > 0)
             {
                 // scroll bar was at the bottom?
@@ -510,9 +550,6 @@ namespace ConsoleTiny
                 m_ListView.scrollPos.y = LogEntries.wrapped.GetCount() * RowHeight;
             }
 
-            SetFlag(ConsoleFlags.ClearOnPlay, GUILayout.Toggle(HasFlag(ConsoleFlags.ClearOnPlay), Constants.ClearOnPlayLabel, Constants.MiniButton));
-
-            SetFlag(ConsoleFlags.ClearOnBuild, GUILayout.Toggle(HasFlag(ConsoleFlags.ClearOnBuild), Constants.ClearOnBuildLabel, Constants.MiniButton));
             SetFlag(ConsoleFlags.ErrorPause, GUILayout.Toggle(HasFlag(ConsoleFlags.ErrorPause), Constants.ErrorPauseLabel, Constants.MiniButton));
             ConnectionGUILayout.ConnectionTargetSelectionDropdown(m_ConsoleAttachToPlayerState, EditorStyles.toolbarDropDown);
 
@@ -536,7 +573,7 @@ namespace ConsoleTiny
             EditorGUI.BeginChangeCheck();
             bool setLogFlag = GUILayout.Toggle(LogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelLog), new GUIContent((logCount <= 999 ? logCount.ToString() : "999+"), logCount > 0 ? iconInfoSmall : iconInfoMono), Constants.MiniButton);
             bool setWarningFlag = GUILayout.Toggle(LogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelWarning), new GUIContent((warningCount <= 999 ? warningCount.ToString() : "999+"), warningCount > 0 ? iconWarnSmall : iconWarnMono), Constants.MiniButton);
-            bool setErrorFlag = GUILayout.Toggle(LogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelError), new GUIContent((errorCount <= 999 ? errorCount.ToString() : "999+"), errorCount > 0 ? iconErrorSmall : iconErrorMono), Constants.MiniButton);
+            bool setErrorFlag = GUILayout.Toggle(LogEntries.wrapped.HasFlag((int)ConsoleFlags.LogLevelError), new GUIContent((errorCount <= 999 ? errorCount.ToString() : "999+"), errorCount > 0 ? iconErrorSmall : iconErrorMono), Constants.MiniButtonRight);
             // Active entry index may no longer be valid
             if (EditorGUI.EndChangeCheck())
             { }
@@ -557,6 +594,7 @@ namespace ConsoleTiny
 
             GUILayout.EndHorizontal();
 
+            //Console Entries
             SplitterGUILayout.BeginVerticalSplit(spl);
             int rowHeight = RowHeight;
             EditorGUIUtility.SetIconSize(new Vector2(rowHeight, rowHeight));
@@ -596,8 +634,8 @@ namespace ConsoleTiny
 
                         // Draw the icon
 
-                            GUIStyle iconStyle = GetStyleForErrorMode(flag, true, Constants.LogStyleLineCount == 1);
-                            iconStyle.Draw(el.position, false, false, isSelected, false);
+                        GUIStyle iconStyle = GetStyleForErrorMode(flag, true, Constants.LogStyleLineCount == 1);
+                        iconStyle.Draw(el.position, false, false, isSelected, false);
 
                         // Draw the text
                         tempContent.text = text;
@@ -884,7 +922,41 @@ namespace ConsoleTiny
                 menu.AddItem(new GUIContent(string.Format("Log Entry/{0} {1}", i, lineString)), i == Constants.LogStyleLineCount, SetLogLineCount, i);
             }
 
+            menu.AddItem(Constants.UseMonospaceFont, m_UseMonospaceFont, OnFontButtonValueChange);
+
             AddStackTraceLoggingMenu(menu);
+        }
+
+        private static void OnFontButtonValueChange()
+        {
+            m_UseMonospaceFont = !m_UseMonospaceFont;
+            SetFlag(ConsoleFlags.UseMonospaceFont, m_UseMonospaceFont);
+            SetFont();
+        }
+
+        private static void SetFont()
+        {
+            var styles = new[]
+            {
+                Constants.LogStyle,
+                Constants.LogSmallStyle,
+                Constants.WarningStyle,
+                Constants.WarningSmallStyle,
+                Constants.ErrorStyle,
+                Constants.ErrorSmallStyle,
+                Constants.MessageStyle,
+            };
+
+            Font font = m_UseMonospaceFont ? m_MonospaceFont : null;
+
+            foreach (var style in styles)
+            {
+                style.font = font;
+                style.fontSize = m_DefaultFontSize;
+            }
+
+            // Make sure to update the fixed height so the entries do not get cropped incorrectly.
+            Constants.UpdateLogStyleFixedHeights();
         }
 
         private void SetTimestamp()
