@@ -152,7 +152,7 @@ namespace ConsoleTiny
             private const string kPrefCollapse = "ConsoleTiny_Collapse";
             private const string kPrefCustomFilters = "ConsoleTiny_CustomFilters";
             private const string kPrefWrappers = "ConsoleTiny_Wrappers";
-
+            private readonly char[] m_CPPDelimeter = new char[] { '@' };
             public bool HasFlag(int flags) { return (m_ConsoleFlags & flags) != 0; }
 
             public void SetFlag(int flags, bool val) { SetConsoleFlag(flags, val); }
@@ -183,7 +183,7 @@ namespace ConsoleTiny
 
                 EntryInfo entryInfo = m_FilteredInfos[row];
                 consoleFlag = (int)entryInfo.flags;
-                entryCount = entryInfo.entryCount;
+                entryCount = CoreLog.LogEntries.GetEntryCount(row);
                 searchIndex = entryInfo.searchIndex;
                 searchEndIndex = entryInfo.searchEndIndex;
                 return entryInfo.text;
@@ -240,6 +240,13 @@ namespace ConsoleTiny
                     }
                 }
                 return -1;
+            }
+
+            public string GetSelectedEntryText()
+            {
+                if (m_SelectedInfo != null)
+                    return m_SelectedInfo.entry.message;
+                return "";
             }
 
             public int GetFirstErrorEntryIndex()
@@ -988,42 +995,22 @@ namespace ConsoleTiny
                 return String.Empty;
             }
 
-            public float StacktraceListView_GetMaxWidth(GUIContent tempContent, GUIStyle tempStyle)
+            public void UpdateStacktraceListView()
             {
                 if (m_SelectedInfo == null || !IsSelectedEntryShow())
                 {
-                    return 1f;
+                    return;
                 }
 
                 if (!StacktraceListView_IsExist())
                 {
                     StacktraceListView_Parse(m_SelectedInfo);
                 }
-
-                var maxLine = -1;
-                var maxLineLen = -1;
-                for (int i = 0; i < m_SelectedInfo.stacktraceLineInfos.Count; i++)
-                {
-                    if (maxLineLen < m_SelectedInfo.stacktraceLineInfos[i].plain.Length)
-                    {
-                        maxLineLen = m_SelectedInfo.stacktraceLineInfos[i].plain.Length;
-                        maxLine = i;
-                    }
-                }
-
-                float maxWidth = 1f;
-                if (maxLine != -1)
-                {
-                    tempContent.text = m_SelectedInfo.stacktraceLineInfos[maxLine].plain;
-                    maxWidth = tempStyle.CalcSize(tempContent).x;
-                }
-
-                return maxWidth;
             }
 
             private void StacktraceListView_Parse(EntryInfo entryInfo)
             {
-                var lines = entryInfo.entry.message.Split(new char[] { '\n' }, StringSplitOptions.None);
+                var lines = entryInfo.entry.message.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                 entryInfo.stacktraceLineInfos = new List<StacktraceLineInfo>(lines.Length);
 
                 string rootDirectory = System.IO.Path.Combine(Application.dataPath, "..");
@@ -1039,6 +1026,7 @@ namespace ConsoleTiny
                 for (int i = 0; i < lines.Length; i++)
                 {
                     var line = lines[i];
+
                     if (i == lines.Length - 1 && string.IsNullOrEmpty(line))
                     {
                         continue;
@@ -1053,11 +1041,16 @@ namespace ConsoleTiny
                     info.text = info.plain;
                     entryInfo.stacktraceLineInfos.Add(info);
 
-                    if (i == 0)
+                    // && !line.Contains(m_CPPDelimeter[0]) -- this is project specific
+                    if (i == 0 && !line.Contains(m_CPPDelimeter[0]))
                     {
                         continue;
                     }
 
+                    if (StacktraceListView_Parse_CPP(line, ref info, m_CPPDelimeter))
+                    {
+                        break;
+                    }
                     if (!StacktraceListView_Parse_CSharp(line, info, textBeforeFilePath, fileInBuildSlave, uriRoot))
                     {
                         StacktraceListView_Parse_Lua(line, info, luaCFunction, luaMethodBefore, luaFileExt, luaAssetPath);
@@ -1257,6 +1250,31 @@ namespace ConsoleTiny
                 return true;
             }
 
+            //Project specific method
+            private bool StacktraceListView_Parse_CPP(string line, ref StacktraceLineInfo info, char[] delimiter)
+            {
+                string[] substrings = line.Split(delimiter, StringSplitOptions.RemoveEmptyEntries);
+                if (substrings.Length >= 3)
+                {
+                    int lineNum = 0;
+                    string filePath = "";
+                    if (!int.TryParse(substrings[substrings.Length - 2].Trim(), out lineNum))
+                    {
+                        return false;
+                    }
+                    filePath = Path.Combine(substrings[substrings.Length - 1].Trim());
+                    if (!File.Exists(filePath))
+                    {
+                        return false;
+                    }
+                    info.lineNum = lineNum;
+                    info.filePath = filePath;
+                    return true;
+                }
+
+                return false;
+            }
+
             public bool StacktraceListView_CanOpen(int stacktraceLineInfoIndex)
             {
                 if (!StacktraceListView_IsExist())
@@ -1334,7 +1352,7 @@ namespace ConsoleTiny
                 {
                     var filePath = m_SelectedInfo.stacktraceLineInfos[stacktraceLineInfoIndex].filePath;
                     var lineNum = m_SelectedInfo.stacktraceLineInfos[stacktraceLineInfoIndex].lineNum;
-                    EditorCoroutineUtility.StartCoroutine( ScriptAssetOpener.OpenAsset(filePath, lineNum), this);
+                    EditorCoroutineUtility.StartCoroutine(ScriptAssetOpener.OpenAsset(filePath, lineNum), this);
                 }
             }
 

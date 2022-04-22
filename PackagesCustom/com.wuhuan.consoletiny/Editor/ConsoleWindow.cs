@@ -177,7 +177,7 @@ namespace ConsoleTiny
         int m_BorderHeight;
 
         bool m_HasUpdatedGuiStyles;
-
+        Vector2 m_TextScroll = Vector2.zero;
 
         ListViewState m_ListView;
         ListViewState m_ListViewMessage;
@@ -296,7 +296,6 @@ namespace ConsoleTiny
         {
             if (ms_ConsoleWindow == null)
                 return;
-
             ms_ConsoleWindow.m_NextRepaint = EditorApplication.timeSinceStartup + 0.25f;
         }
 
@@ -454,6 +453,11 @@ namespace ConsoleTiny
                         EditorGUIUtility.PingObject(instanceID);
                 }
             }
+            else
+            {
+                m_ActiveInstanceID = 0;
+                m_ListView.row = -1;
+            }
         }
 
         void UpdateListView()
@@ -608,7 +612,8 @@ namespace ConsoleTiny
                 int selectedRow = -1;
                 bool openSelectedItem = false;
                 bool collapsed = LogEntries.wrapped.collapse;
-                foreach (ListViewElement el in ListViewGUI.ListView(m_ListView, Constants.Box))
+
+                foreach (ListViewElement el in ListViewGUI.ListView(m_ListView, ListViewOptions.wantsRowMultiSelection, Constants.Box))
                 {
                     if (e.type == EventType.MouseDown && e.button == 0 && el.position.Contains(e.mousePosition))
                     {
@@ -628,25 +633,40 @@ namespace ConsoleTiny
                         ConsoleFlags flag = (ConsoleFlags)mode;
                         bool isSelected = LogEntries.wrapped.IsEntrySelected(el.row);
 
+                        // offset value in x for icon and text
+                        var offset = Constants.LogStyleLineCount == 1 ? 4 : 8;
+                        
                         // Draw the background
                         GUIStyle s = el.row % 2 == 0 ? Constants.OddBackground : Constants.EvenBackground;
                         s.Draw(el.position, false, false, isSelected, false);
 
-                        // Draw the icon
 
+                        // Draw the icon
                         GUIStyle iconStyle = GetStyleForErrorMode(flag, true, Constants.LogStyleLineCount == 1);
-                        iconStyle.Draw(el.position, false, false, isSelected, false);
+                        Rect iconRect = el.position;
+                        iconRect.x += offset;
+                        iconRect.y += 2;
+
+                        iconStyle.Draw(iconRect, false, false, isSelected, false);
 
                         // Draw the text
                         tempContent.text = text;
                         GUIStyle errorModeStyle = GetStyleForErrorMode(flag, false, Constants.LogStyleLineCount == 1);
 
+                        var textRect = el.position;
+                        textRect.x += offset;
+
                         if (string.IsNullOrEmpty(LogEntries.wrapped.searchString) || searchIndex == -1 || searchIndex >= text.Length)
                         {
-                            errorModeStyle.Draw(el.position, tempContent, id, isSelected);
+                            errorModeStyle.Draw(textRect, tempContent, id, m_ListView.row == el.row);
                         }
-                        else
+                        else if (text != null)
                         {
+                            //the whole text contains the searchtext, we have to know where it is
+                            int startIndex = text.IndexOf(LogEntries.wrapped.searchString, StringComparison.OrdinalIgnoreCase);
+                            if (startIndex == -1) // the searchtext is not in the visible text, we don't show the selection
+                                errorModeStyle.Draw(el.position, tempContent, id, isSelected);
+                            else
                             errorModeStyle.DrawWithTextSelection(el.position, tempContent, GUIUtility.keyboardControl, searchIndex, searchEndIndex);
                         }
 
@@ -655,6 +675,8 @@ namespace ConsoleTiny
                             Rect badgeRect = el.position;
                             tempContent.text = entryCount.ToString(CultureInfo.InvariantCulture);
                             Vector2 badgeSize = Constants.CountBadge.CalcSize(tempContent);
+                            if (Constants.CountBadge.fixedHeight > 0)
+                                badgeSize.y = Constants.CountBadge.fixedHeight;
                             badgeRect.xMin = badgeRect.xMax - badgeSize.x;
                             badgeRect.yMin += ((badgeRect.yMax - badgeRect.yMin) - badgeSize.y) * 0.5f;
                             badgeRect.x -= 5f;
@@ -672,6 +694,10 @@ namespace ConsoleTiny
                 // Make sure the selected entry is up to date
                 if (m_ListView.totalRows == 0 || m_ListView.row >= m_ListView.totalRows || m_ListView.row < 0)
                 {
+                    if (LogEntries.wrapped.GetSelectedEntryText().Length != 0)
+                    {
+                        SetActiveEntry(-1);
+                    }
                 }
                 else
                 {
@@ -679,10 +705,12 @@ namespace ConsoleTiny
                     {
                         SetActiveEntry(m_ListView.row);
                     }
+
                 }
 
                 // Open entry using return key
-                if ((GUIUtility.keyboardControl == m_ListView.ID) && (e.type == EventType.KeyDown) && (e.keyCode == KeyCode.Return) && (m_ListView.row != 0))
+                if ((GUIUtility.keyboardControl == m_ListView.ID) && (e.type == EventType.KeyDown) 
+                    && (e.keyCode == KeyCode.Return) && (m_ListView.row != 0))
                 {
                     selectedRow = m_ListView.row;
                     openSelectedItem = true;
@@ -707,11 +735,24 @@ namespace ConsoleTiny
             // called (this releases the mutex in EditorMonoConsole so logging again is allowed). Fix for case 1081060.
             if (rowDoubleClicked != -1)
                 LogEntries.wrapped.StacktraceListView_RowGotDoubleClicked();
+            //-- Uncomment the following line and comment the above line to let Unity handle file opening
+                //CoreLog.LogEntries.RowGotDoubleClicked(rowDoubleClicked); 
 
             EditorGUIUtility.SetIconSize(Vector2.zero);
 
-            StacktraceListView(e, tempContent);
+            LogEntries.wrapped.UpdateStacktraceListView();
 
+            // Display active text (We want word wrapped text with a vertical scrollbar)
+
+            m_TextScroll = GUILayout.BeginScrollView(m_TextScroll, Constants.Box);
+
+            string stackWithHyperlinks = StacktraceWithHyperlinks(LogEntries.wrapped.GetSelectedEntryText(), 0);
+            var guic = new GUIContent(stackWithHyperlinks);
+            float height = Constants.MessageStyle.CalcHeight(guic, position.width);
+            EditorGUILayout.SelectableLabel(stackWithHyperlinks, Constants.MessageStyle,
+                GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true), GUILayout.MinHeight(height + 10));
+
+            GUILayout.EndScrollView();
             SplitterGUILayout.EndVerticalSplit();
 
             // Copy & Paste selected item
@@ -721,6 +762,52 @@ namespace ConsoleTiny
                     LogEntries.wrapped.StacktraceListView_CopyAll();
                 e.Use();
             }
+        }
+
+
+        internal static string StacktraceWithHyperlinks(string stacktraceText, int callstackTextStart)
+        {
+            System.Text.StringBuilder textWithHyperlinks = new System.Text.StringBuilder();
+            textWithHyperlinks.Append(stacktraceText.Substring(0, callstackTextStart));
+            var lines = stacktraceText.Substring(callstackTextStart).Split(new string[] { "\n" }, StringSplitOptions.None);
+            for (int i = 0; i < lines.Length; ++i)
+            {
+                string textBeforeFilePath = ") (at ";
+                int filePathIndex = lines[i].IndexOf(textBeforeFilePath, StringComparison.Ordinal);
+                if (filePathIndex > 0)
+                {
+                    filePathIndex += textBeforeFilePath.Length;
+                    if (lines[i][filePathIndex] != '<') // sometimes no url is given, just an id between <>, we can't do an hyperlink
+                    {
+                        string filePathPart = lines[i].Substring(filePathIndex);
+                        int lineIndex = filePathPart.LastIndexOf(":", StringComparison.Ordinal); // LastIndex because the url can contain ':' ex:"C:"
+                        if (lineIndex > 0)
+                        {
+                            int endLineIndex = filePathPart.LastIndexOf(")", StringComparison.Ordinal); // LastIndex because files or folder in the url can contain ')'
+                            if (endLineIndex > 0)
+                            {
+                                string lineString =
+                                    filePathPart.Substring(lineIndex + 1, (endLineIndex) - (lineIndex + 1));
+                                string filePath = filePathPart.Substring(0, lineIndex);
+
+                                textWithHyperlinks.Append(lines[i].Substring(0, filePathIndex));
+                                textWithHyperlinks.Append("<a href=\"" + filePath + "\"" + " line=\"" + lineString + "\">");
+                                textWithHyperlinks.Append(filePath + ":" + lineString);
+                                textWithHyperlinks.Append("</a>)\n");
+
+                                continue; // continue to evade the default case
+                            }
+                        }
+                    }
+                }
+                // default case if no hyperlink : we just write the line
+                textWithHyperlinks.Append(lines[i] + "\n");
+            }
+            // Remove the last \n
+            if (textWithHyperlinks.Length > 0) // textWithHyperlinks always ends with \n if it is not empty
+                textWithHyperlinks.Remove(textWithHyperlinks.Length - 1, 1);
+
+            return textWithHyperlinks.ToString();
         }
 
         private void SearchField(Event e)
@@ -795,98 +882,6 @@ namespace ConsoleTiny
         {
             LogEntries.wrapped.searchString = options[selected];
         }
-
-        #region Stacktrace
-
-        private void StacktraceListView(Event e, GUIContent tempContent)
-        {
-            float maxWidth = LogEntries.wrapped.StacktraceListView_GetMaxWidth(tempContent, Constants.MessageStyle);
-
-            if (m_StacktraceLineContextClickRow != -1)
-            {
-                var stacktraceLineInfoIndex = m_StacktraceLineContextClickRow;
-                m_StacktraceLineContextClickRow = -1;
-                GenericMenu menu = new GenericMenu();
-                if (LogEntries.wrapped.StacktraceListView_CanOpen(stacktraceLineInfoIndex))
-                {
-                    menu.AddItem(new GUIContent("Open"), false, LogEntries.wrapped.StacktraceListView_Open, stacktraceLineInfoIndex);
-                    menu.AddSeparator("");
-                    if (LogEntries.wrapped.StacktraceListView_CanWrapper(stacktraceLineInfoIndex))
-                    {
-                        menu.AddItem(new GUIContent("Wrapper"), LogEntries.wrapped.StacktraceListView_IsWrapper(stacktraceLineInfoIndex), LogEntries.wrapped.StacktraceListView_Wrapper, stacktraceLineInfoIndex);
-                    }
-                }
-                menu.AddItem(new GUIContent("Copy"), false, LogEntries.wrapped.StacktraceListView_Copy, stacktraceLineInfoIndex);
-                menu.AddItem(new GUIContent("Copy All"), false, LogEntries.wrapped.StacktraceListView_CopyAll);
-                menu.ShowAsContext();
-            }
-
-            int id = GUIUtility.GetControlID(0);
-            int rowDoubleClicked = -1;
-            int selectedRow = -1;
-            bool openSelectedItem = false;
-            m_ListViewMessage.totalRows = LogEntries.wrapped.StacktraceListView_GetCount();
-            GUILayout.BeginHorizontal(Constants.Box);
-            m_ListViewMessage.scrollPos = EditorGUILayout.BeginScrollView(m_ListViewMessage.scrollPos);
-            ListViewGUI.ilvState.beganHorizontal = true;
-            m_ListViewMessage.draggedFrom = -1;
-            m_ListViewMessage.draggedTo = -1;
-            m_ListViewMessage.fileNames = (string[])null;
-            Rect rect = GUILayoutUtility.GetRect(maxWidth,
-                (float)(m_ListViewMessage.totalRows * m_ListViewMessage.rowHeight + 3));
-            foreach (ListViewElement el in ListViewGUI.DoListView(rect, m_ListViewMessage, null, string.Empty))
-            {
-                if (e.type == EventType.MouseDown && (e.button == 0 || e.button == 1) && el.position.Contains(e.mousePosition))
-                {
-                    if (e.button == 1)
-                    {
-                        m_ListViewMessage.row = el.row;
-                        selectedRow = m_ListViewMessage.row;
-                        m_StacktraceLineContextClickRow = selectedRow;
-                        continue;
-                    }
-
-                    selectedRow = m_ListViewMessage.row;
-                    if (e.clickCount == 2)
-                        openSelectedItem = true;
-                }
-                else if (e.type == EventType.Repaint)
-                {
-                    tempContent.text = LogEntries.wrapped.StacktraceListView_GetLine(el.row);
-                    rect = el.position;
-                    if (rect.width < maxWidth)
-                    {
-                        rect.width = maxWidth;
-                    }
-                    Constants.MessageStyle.Draw(rect, tempContent, id, m_ListViewMessage.row == el.row);
-                }
-            }
-
-            // Open entry using return key
-            if ((GUIUtility.keyboardControl == m_ListViewMessage.ID) && (e.type == EventType.KeyDown) && (e.keyCode == KeyCode.Return) && (m_ListViewMessage.row != 0))
-            {
-                selectedRow = m_ListViewMessage.row;
-                openSelectedItem = true;
-            }
-
-            if (openSelectedItem)
-            {
-                rowDoubleClicked = selectedRow;
-                e.Use();
-            }
-
-            if (m_StacktraceLineContextClickRow != -1)
-            {
-                Repaint();
-            }
-
-            if (rowDoubleClicked != -1)
-            {
-                LogEntries.wrapped.StacktraceListView_Open(rowDoubleClicked);
-            }
-        }
-
-        #endregion
 
         public struct StackTraceLogTypeData
         {

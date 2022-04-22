@@ -7,7 +7,6 @@ using Microsoft.Win32;
 using UnityEditor;
 using UnityEditorInternal;
 using UnityEditor.PackageManager;
-using Unity.EditorCoroutines.Editor;
 
 namespace ConsoleTiny
 {
@@ -27,12 +26,10 @@ namespace ConsoleTiny
             return "\"" + path + "\"";
         }
 
-        //public static bool OpenAsset(string file, int line)
         public static IEnumerator OpenAsset(string file, int line)
         {
             if (string.IsNullOrEmpty(file) || file == "None")
             {
-                //return false;
                 yield break;
             }
             if (file.StartsWith("Assets/"))
@@ -40,7 +37,6 @@ namespace ConsoleTiny
                 var ext = Path.GetExtension(file).ToLower();
                 if (ext == ".lua" && TryOpenLuaFile(file, line))
                 {
-                    //return true;
                     yield break;
                 }
 
@@ -48,11 +44,9 @@ namespace ConsoleTiny
                 if (obj)
                 {
                     AssetDatabase.OpenAsset(obj, line);
-                    //return true;
                     yield break;
                 }
 
-                //return false;
                 yield break;
             }
 
@@ -69,13 +63,15 @@ namespace ConsoleTiny
             }
 
             var packageListRequest = Client.List(true);
-            yield return packageListRequest;
+            while (!packageListRequest.IsCompleted)
+            {
+                yield return packageListRequest;
+            }
             foreach (var packageInfo in packageListRequest.Result)
             {
                 if (fileFullPath.StartsWith(packageInfo.resolvedPath, StringComparison.Ordinal))
                 {
                     InternalEditorUtility.OpenFileAtLineExternal(fileFullPath, line);
-                    //return true;
                     yield break;
                 }
             }
@@ -88,7 +84,6 @@ namespace ConsoleTiny
                 {
                     if (string.IsNullOrEmpty(directoryName) || !Directory.Exists(directoryName))
                     {
-                        //return false;
                         yield break;
                     }
 
@@ -98,7 +93,6 @@ namespace ConsoleTiny
                         string testFullPath = Path.Combine(directoryName, fileFullPath.Substring(pos + 1));
                         if (File.Exists(testFullPath) && TryOpenVisualStudioFile(testFullPath, line))
                         {
-                            //return true;
                             yield break;
                         }
 
@@ -115,16 +109,17 @@ namespace ConsoleTiny
         private static bool TryOpenVisualStudioFile(string file, int line)
         {
             string dirPath = file;
-
             do
             {
                 dirPath = Path.GetDirectoryName(dirPath);
+                dirPath = Directory.GetParent(dirPath).FullName;
+
                 if (!string.IsNullOrEmpty(dirPath) && Directory.Exists(dirPath))
                 {
                     var files = Directory.GetFiles(dirPath, "*.sln", SearchOption.TopDirectoryOnly);
                     if (files.Length > 0)
                     {
-                        EditorCoroutineUtility.StartCoroutine(OpenVisualStudioFile(files[0], file, line), null);
+                        OpenVisualStudioFile(files[0], file, line);
                         return true;
                     }
                 }
@@ -133,44 +128,24 @@ namespace ConsoleTiny
                     break;
                 }
             } while (true);
-
             return false;
         }
 
-        //private static void OpenVisualStudioFile(string projectPath, string file, int line)
-        private static IEnumerator OpenVisualStudioFile(string projectPath, string file, int line)
+        private static void OpenVisualStudioFile(string projectPath, string file, int line)
         {
-            UnityEngine.Debug.Log("Opening Asset");
-
             string vsPath = ScriptEditorUtility.GetExternalScriptEditor();
 
             if (IsNotWindowsEditor())
             {
                 Process.Start("open", "-a " + QuotePathIfNeeded(vsPath) + " " + QuotePathIfNeeded(file));
-                //return;
-                yield break;
+                return;
             }
 
             if (string.IsNullOrEmpty(vsPath) || !File.Exists(vsPath))
             {
-                //return;
-                yield break;
+                return;
             }
-            string exePath = String.Empty;
-
-
-            var packageListRequest = Client.List(true);
-            yield return packageListRequest; 
-            foreach (var packageInfo in packageListRequest.Result)
-            {
-                if (packageInfo.name == "com.wuhuan.consoletiny")
-                {
-                    exePath = packageInfo.resolvedPath;
-                    // https://github.com/akof1314/VisualStudioFileOpenTool
-                    exePath = exePath + "\\Editor\\VisualStudioFileOpenTool.exe";
-                    break;
-                }
-            }
+            string exePath = Path.GetFullPath("Packages/com.wuhuan.consoletiny/Editor/VisualStudioFileOpenTool.exe");
 
 
             if (string.IsNullOrEmpty(exePath))
@@ -182,8 +157,7 @@ namespace ConsoleTiny
             {
                 if (!File.Exists(exePath))
                 {
-                    //return;
-                    yield break;
+                    return;
                 }
 
                 ThreadPool.QueueUserWorkItem(_ =>
